@@ -33,15 +33,10 @@ def classify_identifier_style(name):
 
 class CodeStyleVisitor(cst.CSTVisitor):
     def __init__(self):
-
         self.all_identifiers: Set[str] = set()
-
         self.non_identifiers: Set[str] = set(keyword.kwlist)
-
         self.has_docstring: bool = False
-        
         self.has_debug_statements: bool = False
-        
         self.inline_comment_count: int = 0
         self.inter_line_comment_count: int = 0
 
@@ -55,26 +50,21 @@ class CodeStyleVisitor(cst.CSTVisitor):
 
 
     def visit_Module(self, node: cst.Module) -> None:
-
         self.indent_length = len(node.default_indent)
         self._check_for_docstring(node)
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
-
         self.non_identifiers.add(node.name.value)
         self._check_for_docstring(node)
 
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
-
         self.non_identifiers.add(node.name.value)
         self._check_for_docstring(node)
 
     def visit_Name(self, node: cst.Name) -> None:
-
         self.all_identifiers.add(node.value)
 
     def visit_Call(self, node: cst.Call) -> None:
-
         if isinstance(node.func, cst.Name) and node.func.value == "print":
             self.has_debug_statements = True
 
