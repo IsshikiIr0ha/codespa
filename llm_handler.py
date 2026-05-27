@@ -1,29 +1,40 @@
-# llm_handler.py
-from vllm import LLM, SamplingParams
+import re
+
 
 class LLMHandler:
-    """一个封装了vLLM模型交互的处理器。"""
-    def __init__(self, model_path: str, tensor_parallel_size: int, max_tokens: int = 1024):
-        print(f"Loading model from: {model_path}...")
-        self.model = LLM(
-            model=model_path,
-            tensor_parallel_size=tensor_parallel_size,
-            gpu_memory_utilization=0.9,
-            trust_remote_code=True,
-            max_model_len=4096
-        )
-        self.sampling_params = SamplingParams(temperature=0, n=1, max_tokens=max_tokens, stop=["[/Correct Code]", "[/InCorrect Code]"])
-        print("Model loaded successfully.")
+    def __init__(self, base_url: str, model: str, api_key: str = "dummy"):
+        from openai import OpenAI
+        self.client = OpenAI(base_url=base_url, api_key=api_key)
+        self.model = model
 
-    def generate(self, prompt: str) -> str:
-        """
-        从LLM生成一个响应。
-        """
-        outputs = self.model.generate(prompt, self.sampling_params, use_tqdm=False)
-        # 提取文本并清理潜在的代码块格式
-        generated_text = outputs[0].outputs[0].text
-        if "```python" in generated_text:
-            generated_text = generated_text.split("```python")[1].split("```")[0].strip()
-        elif "```" in generated_text:
-             generated_text = generated_text.split("```")[1].strip()
-        return generated_text.strip()
+    def generate(self, prompt: str, max_tokens: int = 2048, temperature: float = 0.0) -> str:
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        return response.choices[0].message.content or ""
+
+
+def extract_code_from_response(response: str) -> str:
+    match = re.search(r'```python\s*\n(.*?)```', response, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    match = re.search(r'```\s*\n(.*?)```', response, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return response.strip()
+
+
+def get_handler(base_url: str = "http://localhost:8000/v1", model: str = "default") -> LLMHandler:
+    import httpx
+    from openai import OpenAI
+    client = OpenAI(base_url=base_url, api_key="dummy",
+                    http_client=httpx.Client(timeout=5.0))
+    models = client.models.list()
+    model_id = model if model != "default" else models.data[0].id
+    print(f"[llm] connected to {base_url}, model: {model_id}")
+    return LLMHandler(base_url=base_url, model=model_id)
